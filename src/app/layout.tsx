@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Link Hub",
+  title: "[ ALMOND TREE ] BookMark 2026",
   description: "내 링크 모음과 URL 단축기",
 };
 

@@ -32,7 +32,7 @@ export default async function Home() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-green-700">Link Hub</h1>
+        <h1 className="text-lg font-bold text-green-700">[ ALMOND TREE ] BookMark 2026</h1>
       </header>
 
       <section className="rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm">
