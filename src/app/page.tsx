@@ -1,7 +1,10 @@
 import { supabase } from "@/lib/supabase";
 import type { Category, Bookmark } from "@/lib/types";
+import { isAuthorized } from "@/lib/requireAuth";
 import ShortenerForm from "./ShortenerForm";
 import BookmarkBoard from "./BookmarkBoard";
+import LoginGate from "./LoginGate";
+import LogoutButton from "./LogoutButton";
 
 // Categories/bookmarks are edited at runtime, so this page must not be
 // statically prerendered — always fetch fresh data per request.
@@ -27,12 +30,26 @@ async function getCategories(): Promise<Category[]> {
 }
 
 export default async function Home() {
+  const authorized = await isAuthorized();
+
+  if (!authorized) {
+    return (
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
+        <header className="flex items-center justify-between">
+          <h1 className="text-lg font-bold text-green-700">[ ALMOND TREE ] BookMark 2026</h1>
+          <LoginGate />
+        </header>
+      </main>
+    );
+  }
+
   const categories = await getCategories();
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-green-700">[ ALMOND TREE ] BookMark 2026</h1>
+        <LogoutButton />
       </header>
 
       <section className="rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm">

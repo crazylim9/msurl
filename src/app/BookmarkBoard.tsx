@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -22,23 +22,13 @@ import {
 } from "@dnd-kit/sortable";
 import type { Category } from "@/lib/types";
 import CategoryCard from "./CategoryCard";
-import PasswordModal from "./PasswordModal";
 
 export default function BookmarkBoard({ initialCategories }: { initialCategories: Category[] }) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
-  const [authorized, setAuthorized] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/status")
-      .then((r) => r.json())
-      .then((d) => setAuthorized(!!d.authorized))
-      .catch(() => {});
-  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -144,33 +134,7 @@ export default function BookmarkBoard({ initialCategories }: { initialCategories
   }
 
   function handleEditClick() {
-    if (authorized) {
-      setEditMode((v) => !v);
-    } else {
-      setShowPasswordModal(true);
-    }
-  }
-
-  async function handlePasswordSubmit(password: string) {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    if (res.ok) {
-      setAuthorized(true);
-      setEditMode(true);
-      setShowPasswordModal(false);
-      return null;
-    }
-    const data = await res.json().catch(() => ({}));
-    return data.error ?? "로그인에 실패했습니다.";
-  }
-
-  async function handleLock() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setAuthorized(false);
-    setEditMode(false);
+    setEditMode((v) => !v);
   }
 
   async function addCategory() {
@@ -266,14 +230,6 @@ export default function BookmarkBoard({ initialCategories }: { initialCategories
   return (
     <div>
       <div className="mb-2 flex justify-end gap-2">
-        {editMode && (
-          <button
-            onClick={handleLock}
-            className="rounded border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-500 hover:border-neutral-400"
-          >
-            잠금
-          </button>
-        )}
         <button
           onClick={handleEditClick}
           className="rounded border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-600 hover:border-neutral-400"
@@ -369,12 +325,6 @@ export default function BookmarkBoard({ initialCategories }: { initialCategories
           {editMode ? "위에서 카테고리를 추가해보세요." : "편집 버튼을 눌러 카테고리를 추가해보세요."}
         </p>
       )}
-
-      <PasswordModal
-        open={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        onSubmit={handlePasswordSubmit}
-      />
     </div>
   );
 }
