@@ -1,23 +1,34 @@
 # Link Hub
 
-첫 화면에서 원하는 사이트로 바로 이동시켜주는 링크 모음 페이지 + bit.ly 스타일 URL 단축기.
+네이버 첫화면 스타일의 카테고리별 북마크 모음 + bit.ly 스타일 URL 단축기.
 
 ## 스택
 
-- **Next.js (App Router) + TypeScript + Tailwind CSS** — 소규모 정적/서버리스 사이트에 적합
-- **Supabase (Postgres)** — 단축 URL의 `slug → target_url` 매핑 저장
-- **Vercel** — 무료 배포
+- **Next.js (App Router) + TypeScript + Tailwind CSS**
+- **Supabase (Postgres)** — 카테고리/북마크/단축 URL 저장
+- **@dnd-kit** — 카테고리·북마크 드래그 순서 변경
+- **Vercel** — 배포
 
 ## 구조
 
-- `src/lib/links.ts` — 첫 화면에 보여줄 링크 목록 (직접 코드에서 수정)
-- `src/app/page.tsx` — 링크 목록 + URL 단축기 폼
-- `src/app/ShortenerForm.tsx` — 단축기 클라이언트 폼 (복사 버튼 포함)
-- `src/app/api/shorten/route.ts` — URL을 받아 랜덤 slug 생성 후 Supabase에 저장
-- `src/app/[slug]/route.ts` — `/{slug}` 접속 시 Supabase에서 조회해 원래 URL로 리다이렉트
-- `src/lib/supabase.ts` — Supabase 클라이언트
+- `src/app/page.tsx` — 서버 컴포넌트. Supabase에서 카테고리+북마크를 읽어 `BookmarkBoard`에 전달
+- `src/app/BookmarkBoard.tsx` — 편집 모드, 드래그앤드롭(카테고리 순서 + 북마크 순서/카테고리 간 이동) 오케스트레이션
+- `src/app/CategoryCard.tsx` / `src/app/BookmarkItem.tsx` — 카테고리 카드, 북마크 행 (각각 이름/URL 수정, 삭제 UI 포함)
+- `src/app/PasswordModal.tsx` — 편집 비밀번호 입력 모달
+- `src/app/ShortenerForm.tsx` — URL 단축기 폼 (홈 화면 상단에 고정 배치)
+- `src/app/api/shorten`, `src/app/[slug]/route.ts` — 단축 URL 생성/리다이렉트
+- `src/app/api/auth/*` — 편집 비밀번호 로그인/로그아웃/세션 확인 (서명된 httpOnly 쿠키)
+- `src/app/api/categories/*`, `src/app/api/bookmarks/*` — 카테고리/북마크 CRUD + 순서 변경 API (편집 세션 필요)
+- `src/lib/supabase.ts` — 클라이언트/공개 읽기용 (anon key)
+- `src/lib/supabaseAdmin.ts` — 서버 전용 쓰기용 (service role key, RLS 우회)
 
-링크 목록을 바꾸려면 `src/lib/links.ts` 파일의 배열만 수정하면 됩니다.
+## 권한 모델
+
+로그인 시스템은 없고, 대신 **편집 비밀번호** 하나로 쓰기 작업을 보호합니다.
+
+- Supabase RLS: `categories`/`bookmarks`/`short_links` 모두 `anon`은 **읽기(select)만** 가능 (short_links는 단축 링크 생성을 위해 insert도 허용).
+- 카테고리/북마크의 생성·수정·삭제·순서변경은 전부 Next.js API 라우트에서 `SUPABASE_SERVICE_ROLE_KEY`(서버 전용, `NEXT_PUBLIC_` 아님)로 수행하며, 요청 전에 `EDIT_PASSWORD`로 발급한 서명된 쿠키를 검증합니다.
+- 이렇게 해야 anon key가 공개되어 있어도(클라이언트 코드에 필연적으로 노출됨) 브라우저에서 Supabase REST API를 직접 호출해 데이터를 바꾸는 걸 막을 수 있습니다.
 
 ## 로컬 개발
 
@@ -26,29 +37,31 @@ npm install
 npm run dev
 ```
 
-`.env.local`에 아래 값이 필요합니다 (이미 생성되어 있음):
+`.env.local`에 아래 값이 필요합니다:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...   # 서버 전용, 절대 커밋/노출 금지
+EDIT_PASSWORD=...               # 편집 모드 비밀번호
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-## Supabase
+## Supabase 테이블
 
-프로젝트 `link-hub` (region: `ap-northeast-2`)에 `short_links` 테이블이 이미 생성되어 있습니다:
+```sql
+-- short_links, categories, bookmarks 테이블 및 RLS 정책은
+-- 프로젝트 설정 시 SQL Editor에서 한 번 실행해두면 됩니다.
+```
 
-- `slug text unique` — 단축 코드
-- `target_url text` — 원본 URL
-- `click_count integer` — 향후 클릭 수 집계용 (현재는 미사용, 기본값 0)
-
-RLS는 `anon` 역할에 대해 `insert`/`select`만 허용합니다. `update`는 열어두지 않았는데, 열면 누구나 REST API로 기존 slug의 target_url을 바꿔치기할 수 있기 때문입니다. 클릭 수를 실제로 세고 싶다면 anon이 아닌 서버 전용 키(service role)를 쓰는 API 라우트에서 증가시키는 방식을 권장합니다.
+- `short_links(id, slug, target_url, created_at, click_count)`
+- `categories(id, name, position, created_at)`
+- `bookmarks(id, category_id, label, url, position, created_at)`
 
 ## Vercel 배포
 
-1. 이 저장소를 GitHub에 올리고 Vercel에서 Import
-2. Vercel 프로젝트 설정 → Environment Variables에 `.env.local`과 동일한 3개 값 추가
-   - `NEXT_PUBLIC_SITE_URL`은 배포 후 실제 도메인(예: `https://link-hub.vercel.app`)으로 변경
+1. GitHub 저장소를 Vercel에서 Import (또는 `vercel --prod`)
+2. Environment Variables에 위 5개 값 추가 (service role key와 edit password는 반드시 서버 전용으로 유지)
 3. Deploy
 
-배포 후에는 생성되는 단축 링크가 실제 배포 도메인 기준으로 만들어집니다 (`ShortenerForm`이 `window.location.origin`을 사용하므로 별도 설정 없이 자동 반영됩니다).
+`NEXT_PUBLIC_SITE_URL`은 정보성 값이며 실제 단축 링크는 `window.location.origin` 기준으로 만들어져 배포 도메인에 자동 반영됩니다.
